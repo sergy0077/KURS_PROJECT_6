@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Blog Detail{% endblock %}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+<div class="container">
+    <div class="row text-start">
+        <div class="col-lg-9 col-md-6 col-sm-12">
+            <div class="card mb-4 box-shadow">
+                <div class="card-header">
+                    <div class="card-title">{{ object.title }}</div>
+                </div>
+                <div class="card-body">
+                    <p>
+                        {{ object.content }}
+                    </p>
+                    <p>Дата публикации: {{ object.creation_date }}</p>
+                    <p>Количество просмотров: {{ object.views_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-12">
+            <div class="card mb-4 box-shadow">
+                {% if object.preview %}
+                <img src="/media/{{ object.preview }}">
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

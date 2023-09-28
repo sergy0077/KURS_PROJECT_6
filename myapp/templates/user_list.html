@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">Пользователи сервиса</h1>
+</div>
+<div class="container">
+    <div class="row text-center">
+        {% for object in object_list %}
+        <div class="col-3">
+            <div class="card mb-4 box-shadow">
+                <div class="card-header">
+                    <h4 class="my-0 font-weight-normal">Пользователь</h4>
+                </div>
+                <div class="card-body">
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">Имя пользователя:
+                        {% if object.username %}
+                        {{ object.username }}
+                        {% else %}
+                        Не указано
+                        {% endif %}
+                        <br>ФИ0:
+                        {% if object.fullname %}
+                        {{ object.fullname }}
+                        {% else %}
+                        Не указана
+                        {% endif %}</p>
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">Почта: {{ object.email }}</p>
+                    <div class="btn-group">
+                        {% if perms.users.set_active %}
+                        {% if object.is_active %}
+                        <a class="btn btn-warning" href="{% url 'myapp:toggle_users_activity' object.pk %}">Заблокировать пользователя</a>
+                        {% else %}
+                        <a class="btn btn-success" href="{% url 'myapp:toggle_users_activity' object.pk %}">Разблокировать пользователя</a>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

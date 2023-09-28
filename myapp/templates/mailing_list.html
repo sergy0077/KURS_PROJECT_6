@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load filters %}
+{% block content %}
+<div class="col-12 mb-5">
+    {% if perms.mailing.add_mail %}
+    <a class="btn btn-outline-primary" href="{% url 'myapp:create_mailing' %}">Добавить рассылку</a>
+    {% endif %}
+</div>
+<div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">Сервис управления рассылками</h1>
+    <p class="lead">Это простой и удобный способ управления вашими рассылками и получения статистики</p>
+</div>
+
+<div class="container">
+    <div class="row text-center">
+        {% for object in object_list %}
+        <div class="col-3">
+            <div class="card mb-4 box-shadow">
+                <div class="card-header">
+                    <h4 class="my-0 font-weight-normal">{{ object }}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">Статус: {{ object.status }}</p>
+<!--                   -->
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">{{ object.start_date }} - {{ object.end_date }}</p>
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">
+                        {{object.content|split}}...
+                    </p>
+                    <div class="btn-group">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'myapp:mailing_detail' object.pk %}">{{ mailing }} View</a>
+                        {% if perms.mailing.change_mail %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'myapp:edit_mailing' object.pk %}">Edit</a>
+                        {% endif %}
+                        {% if perms.mailing.delete_mail %}
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'myapp:delete_mailing' object.pk %}">Delete</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if perms.background_task.delete_task %}
+                    {% if object.is_going %}
+                        <a href="{% url 'myapp:toggle_activity' object.pk %}">Остановить рассылку</a>
+                    {% else %}
+<!--              -->
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+

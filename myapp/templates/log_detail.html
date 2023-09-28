@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Список Логов{% endblock %}
+
+{% block content %}
+    <h1>Детали лога</h1>
+    <p>Send Datetime: {{ log.send_datetime }}</p>
+    <p>Status: {{ log.get_status_display }}</p>
+    <p>Client: {{ log.client }}</p>
+    <p>Timestamp: {{ log.timestamp }}</p>
+    <p>Response: {{ log.response }}</p>
+    <p>Mailing: {{ log.mailing }}</p>
+    <p>Last Attempt Datetime: {{ log.last_attempt_datetime }}</p>
+    <p>Last Attempt Status: {{ log.last_attempt_status }}</p>
+    <p>Last Attempt Response: {{ log.last_attempt_response }}</p>
+{% endblock %}
+
+

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Deleting Blog{% endblock %}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <div class="row">
+        <div class="col-6">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <p>Хотите удалить статью "{{ object.title }}"?</p>
+                        <button type="submit" class="btn btn-danger">Подтвердить</button>
+                        <a href="{% url 'blog:blog_list' %}" class="btn btn-warning">Отмена</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

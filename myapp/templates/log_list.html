@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block title %}Список Логов{% endblock %}
+
+{% block content %}
+    <h1>Список Логов</h1>
+    <ul>
+        {% for log in log_list %}
+            <li><a href="{% url 'myapp:log_detail' log.pk %}">{{ log.send_datetime }} - {{ log.get_status_display }}</a></li>
+        {% endfor %}
+    </ul>
+{% endblock %}
+
+

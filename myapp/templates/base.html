@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MailingManager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+</head>
+<body>
+{% include 'includes/inc_menu.html' %}
+
+{% block content %}
+{% endblock %}
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="{% url 'myapp:home' %}">Mailing App</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'myapp:home' %}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'myapp:mailing_list' %}">Mailing List</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'myapp:client_list' %}">Clients</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'myapp:log_list' %}">Logs List</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'myapp:create_message' %}">Create Message</a>
+                </li>
+                {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'myapp:logout' %}">Logout</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'myapp:login' %}">Войти</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'myapp:register' %}">Регистрация</a>
+                    </li>
+                {% endif %}
+                    <li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'blog:blog_list' %}">Blog</a>
+                    </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Подключение скриптов -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+

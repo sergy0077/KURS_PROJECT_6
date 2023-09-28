@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Mailing Detail</h1>
+    <h2>{{ object.title }}</h2>
+    <h3>Mailing Logs:</h3>
+    <ul>
+        {% for log in mailing_logs %}
+            <li>{{ log.send_datetime }} - {{ log.get_status_display }}</li>
+        {% endfor %}
+    </ul>
+    <p>Send Time: {{ object.send_time }}</p>
+    <p>Frequency: {{ object.get_frequency_display }}</p>
+    <p>Status: {{ object.get_status_display }}</p>
+    <h2>Clients:</h2>
+    <ul>
+        {% for client in object.clients.all %}
+            <li>{{ client }}</li>
+        {% endfor %}
+    </ul>
+    <form method="post" action="{% url 'myapp:create_message' %}">
+        {% csrf_token %}
+        {{ message_form.as_p }}
+        <button type="submit">Create Message</button>
+    </form>
+    <h3>Messages:</h3>
+    <ul>
+        {% for message in messages %}
+        <li>
+            {{ message.subject }} - {{ message.body }}
+            <a href="{% url 'myapp:edit_message' message.pk %}">Edit</a>
+            <a href="{% url 'myapp:delete_message' message.pk %}">Delete</a>
+        </li>
+        {% endfor %}
+    </ul>
+    <h3>Last Attempt:</h3>
+    <p>Attempt Datetime: {{ last_attempt_log.last_attempt_datetime }}</p>
+    <p>Attempt Status: {{ last_attempt_log.get_last_attempt_status_display }}</p>
+    <p>Attempt Response: {{ last_attempt_log.last_attempt_response }}</p>
+    <form action="{% url 'myapp:send_mailing_now' object.pk %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="send-now-button">Send Now</button>
+    </form>
+{% endblock %}

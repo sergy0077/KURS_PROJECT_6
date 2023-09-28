@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="col-12 mb-5">
+    <a class="btn btn-outline-primary" href="{% url 'blog:create' %}">Добавить статью</a>
+</div>
+    <div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+        <h1 class="display-4">Список статей</h1>
+    </div>
+<div class="container">
+    <div class="row text-center">
+        {% for object in object_list %}
+        <div class="col-3">
+            <div class="card mb-4 box-shadow">
+                <div class="card-header">
+                    <h4 class="my-0 font-weight-normal">{{ object }}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">
+                        {{ object.get_split_content|join:" " }}...
+                    </p>
+                    <div class="btn-group">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'blog:view' object.pk %}">View</a>
+                        {% if perms.blog.change_article %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'blog:edit' object.pk %}">Edit</a>
+                        {% endif %}
+                        {% if perms.blog.delete_article %}
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'blog:blog_delete' object.pk %}">Delete</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

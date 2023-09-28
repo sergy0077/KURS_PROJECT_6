@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <title>Создать рассылку</title>
+    <h1>Create Mailing</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Create</button>
+    </form>
+{% endblock %}
+

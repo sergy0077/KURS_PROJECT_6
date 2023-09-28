@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>Client Detail</h1>
+    <h2>Клиент: {{ object.full_name }}</h2>
+    <p>Email: {{ object.email }}</p>
+    <p>ФИО: {{ object.full_name }}</p>
+    <p>Комментарий: {{ object.comment }}</p>
+<tr>
+    <td class="w-25">Подписан на рассылки:</td>
+    <td>
+        {% for mail in object.mails.all %}
+            <a href="{% url 'mailing:view' mail.pk %}">{{ mail }}</a><br>
+        {% endfor %}
+    </td>
+</tr>
+<div class="col-lg-3 col-md-6 col-sm-12">
+    <div class="card mb-4 box-shadow">
+        <img src="https://nsk.renessite.site/wp-content/uploads/2022/12/405-4056222_email-marketing-clipart-email-marketing-clipart-png.jpg">
+    </div>
+</div>
+{% endblock %}

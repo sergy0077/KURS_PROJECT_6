@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <title>Edit Mailing</title>
+
+    <h1>Edit Mailing</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save Changes</button>
+    </form>
+{% endblock %}

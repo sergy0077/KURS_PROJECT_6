@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load filters %}
+{% block content %}
+<div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">Сервис управления рассылками</h1>
+    <p class="lead">Это простой и удобный способ управления вашими рассылками и получения статистики</p>
+</div>
+<div>
+    <div class="row text-center">
+        <h4 class="">Наша статистика:</h4>
+    </div>
+    <div class="container">
+    <div class="row text-center">
+        <div class="col-4"><p class="lead">Всего рассылок - {{ mailing_all }}</p></div>
+        <div class="col-4"><p class="lead">Количество активных рассылок - {{ mailing_active }}</p></div>
+        <div class="col-4"><p class="lead">Количество получателей наших рассылок - {{ clients }}</p></div>
+    </div>
+    </div>
+</div>
+<div class="container">
+    <div class="row text-center">
+        <h4 class="">Наши статьи:</h4>
+    </div>
+    <div class="row text-center">
+        {% for object in last_articles %}
+        <div class="col-4">
+            <div class="card mb-4 box-shadow">
+                <div class="card-header">
+                    <h4 class="lead">{{ object }}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="list-unstyled mt-3 mb-4 text-start m-3">
+                        {{object.content|split}}...
+                    </p>
+                    <div class="btn-group">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'blog:view' object.pk %}">View</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

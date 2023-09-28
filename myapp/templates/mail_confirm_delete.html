@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-6">
+            <div class="card">
+                <div class="card-body">
+                    {% if object.is_going %}
+                    <p>Невозможно удалить объект "{{ object.title }}". Сначала остановите рассылку.</p>
+                        <a href="{% url 'myapp:mailing_list' %}" class="btn btn-warning">Вернуться к рассылкам</a>
+                    {% else %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <p>Хотите удалить рассылку "{{ object.title }}"?</p>
+                        <button type="submit" class="btn btn-danger">Подтвердить</button>
+                        <a href="{% url 'myapp:mailing_list' %}" class="btn btn-warning">Отмена</a>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="col-12 mb-5">
+    <a class="btn btn-outline-primary" href="{% url 'myapp:client_create' %}">Добавить клиента</a>
+</div>
+<div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto text-center">
+    <h1 class="display-4">Клиенты сервиса</h1>
+</div>
+<div class="container">
+    <div class="row text-center">
+        {% for client in object_list %}
+         <div class="col-3">
+            <div class="card mb-4 box-shadow">
+                  <div class="card-header">
+                    <h4 class="my-0 font-weight-normal">Клиент</h4>
+                  </div>
+                <div class="card-body">
+                   {{ client.full_name }}
+                   <div class="btn-group">
+                     <a class="btn btn-warning" href="{% url 'myapp:client_detail' client.pk %}">Detail</a>
+                     <a class="btn btn-warning" href="{% url 'myapp:client_update' client.pk %}">Edit</a>
+                     <a class="btn btn-warning" href="{% url 'myapp:client_delete' client.pk %}">Delete</a>
+                   </div>
+                </div>
+            </div>
+         </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
