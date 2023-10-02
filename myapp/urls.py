@@ -2,8 +2,7 @@ from myapp import views
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from .views import UserConfirmEmailView, UserConfirmedView, UserConfirmationFailedView, UserUpdateView, reset_password, \
-    UserResetDoneView, UserListView, toggle_users_activity, index
-from .views import send_mailing_now
+    UserResetDoneView, UserListView, toggle_users_activity, index, send_mailing_now
 
 
 app_name = 'myapp'

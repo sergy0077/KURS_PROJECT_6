@@ -14,7 +14,9 @@
     <h2>Clients:</h2>
     <ul>
         {% for client in object.clients.all %}
-            <li>{{ client }}</li>
+            <li>{{ client.full_name }}</li>
+        {% empty %}
+            <li>No clients associated with this mailing</li>
         {% endfor %}
     </ul>
     <form method="post" action="{% url 'myapp:create_message' %}">
@@ -36,7 +38,7 @@
     <p>Attempt Datetime: {{ last_attempt_log.last_attempt_datetime }}</p>
     <p>Attempt Status: {{ last_attempt_log.get_last_attempt_status_display }}</p>
     <p>Attempt Response: {{ last_attempt_log.last_attempt_response }}</p>
-    <form action="{% url 'myapp:send_mailing_now' object.pk %}" method="post">
+    <form action="{% url 'myapp:send_mailing_now' pk=object.pk %}" method="post">
         {% csrf_token %}
         <button type="submit" class="send-now-button">Send Now</button>
     </form>

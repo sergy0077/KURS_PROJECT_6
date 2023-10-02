@@ -1,5 +1,4 @@
 from datetime import timezone
-from celery.app import task
 from django.contrib.auth.views import PasswordResetDoneView, RedirectURLMixin
 from django.core.mail import send_mail
 from django.http import Http404, HttpResponse
@@ -8,8 +7,6 @@ from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView, FormView
 from django.urls import reverse_lazy, reverse
-
-from tasks import send_mailing
 from .models import MailingSettings, MailingLog, Client, Message, User, Logfile
 from myapp.forms import MailingSettingsForm, ClientForm, MessageForm, MailingLogForm, UserForm
 from django.contrib.auth import login, authenticate
@@ -17,16 +14,12 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.utils import timezone
-
 from myapp.services import send_block_notification, send_reset_password_mail, check_link
-from .utils import send_mailing_task, create_failed_log
+from .utils import create_failed_log
 from django.views.generic import CreateView, DetailView, ListView, UpdateView, DeleteView
-
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from blog.models import BlogPost
 from django.core.exceptions import ObjectDoesNotExist
-
-
 
 
 def index(request):
@@ -321,6 +314,12 @@ class MailingList(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     context_object_name = 'object_list'
     permission_required = 'myapp.view_mail'
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff or MailingSettings.owner == self.request.user:
+            return queryset
+        raise Http404
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['mailing_logs'] = MailingLog.objects.all()
@@ -331,6 +330,13 @@ class MailingList(LoginRequiredMixin, PermissionRequiredMixin, ListView):
 class MailingDetailPage(DetailView):
     model = MailingSettings
     template_name = 'mailing_detail.html'
+
+    def get_context_data(self, сlients=None, **kwargs):
+        context = super().get_context_data(**kwargs)
+        mailing_settings = self.object
+        clients = mailing_settings.clients.all()
+        context['clients'] = сlients
+        return context
 
 
 class DeleteMailing(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
@@ -354,10 +360,6 @@ class MailLogfileDetailView(DetailView):
     template_name = 'mailing/logfile_list.html'
 
 
-class LogDetail(DetailView):
-    model = Logfile
-
-
 def toggle_activity(request, pk):
     mail = MailingSettings.objects.get(pk=pk)
     if mail.is_going:
@@ -369,13 +371,30 @@ def toggle_activity(request, pk):
     return redirect(reverse('myapp:mailing_list'))
 
 
+def mailing_activity(request, pk):
+    mailing = get_object_or_404(MailingSettings, pk=pk)
+    if mailing.status:
+        mailing.status = False
+    else:
+        mailing.status = True
+    mailing.save()
+    return redirect(reverse('myapp:mail_list'))
+
+
+def send_mailing(id):
+    pass
+
+
 @require_POST
 @login_required
 def send_mailing_now(request, pk):
+    client_id = request.POST.get('client_id')
+    print("Client ID:", client_id)
+    client = get_object_or_404(Client, pk=client_id)
     mailing_settings = get_object_or_404(MailingSettings, pk=pk)
-    client_id = 1
+
     try:
-        client = Client.objects.get(pk=client_id)
+        client = Client.objects.get(pk=client)
     except Client.DoesNotExist:
         return HttpResponse('Client not found', status=400)
 
@@ -395,7 +414,6 @@ def send_mailing_now(request, pk):
         return HttpResponse('Client not found', status=400)  # Вернуть сообщение об ошибке и статус 400 (Bad Request)
 
     return redirect('myapp:mailing_detail', pk=pk)
-
 
 
 def contacts(request):

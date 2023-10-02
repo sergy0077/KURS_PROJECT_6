@@ -63,6 +63,7 @@ def delete_sending_task(mail):
             mail_status_task = task
             mail_status_task.delete()
 
+
 def add_group(user):
     group = Group.objects.get(name='Service_user')
     user.groups.add(group)

@@ -41,7 +41,7 @@ class User(AbstractUser):
     fullname = models.CharField(max_length=150, verbose_name='ФИ0')
     comment = models.TextField(verbose_name='комментарий', **NULLABLE)
     avatar = models.ImageField(upload_to='user/', verbose_name='фото', null=True, blank=True)
-    is_manager = models.BooleanField(default=False)
+    is_manager = models.BooleanField(default=False,  verbose_name='activity')
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -56,6 +56,7 @@ class User(AbstractUser):
 """Модель для клиента сервися рассылок"""
 
 class Client(models.Model):
+    DoesNotExist = None
     objects = None
     full_name = models.CharField(max_length=150, verbose_name='ФИО', **NULLABLE)
     email = models.EmailField(max_length=150, unique=True, verbose_name='почта')
@@ -64,6 +65,8 @@ class Client(models.Model):
     # Зависимость от владельца клиента
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='владелец_клиента', **NULLABLE)
     mails = models.ManyToManyField('myapp.MailingSettings', through="Enrollment")
+
+    objects = models.Manager()
 
     def __str__(self):
         return f'{self.full_name}, {self.email}'
@@ -117,24 +120,32 @@ class Period(models.Model):
 
 class MailingSettings(models.Model):
     objects = None
-    FREQUENCY_CHOICE = (
-        ("daily", "ежедневно"),
-        ("weekly", "еженедельно"),
-        ("monthly", "ежемесячно"),
-    )
-
+    # FREQUENCY_CHOICE = (
+    #     ("daily", "ежедневно"),
+    #     ("weekly", "еженедельно"),
+    #     ("monthly", "ежемесячно"),
+    # )
+    #
     STATUS_CHOICE = (
     ("created", "Создана"),
     ("completed", "Завершена"),
     ("started", "Запущена"),
     )
+    PERIOD_HOURLY = 'hourly'
+    PERIOD_DAILY = 'daily'
+    PERIOD_WEEKLY = 'weekly'
 
+    PERIODS = (
+        (PERIOD_HOURLY, 'Раз в час'),
+        (PERIOD_DAILY, 'Ежедневная'),
+        (PERIOD_WEEKLY, 'Раз в неделю'),
+    )
     title = models.CharField(max_length=25, verbose_name='Название рассылки')
     theme_mess = models.CharField(max_length=200, verbose_name='Тема письма')
     body_mess = models.TextField(verbose_name='Тело письма')
 
     start_time = models.TimeField(auto_now_add=False, default='12:00', verbose_name='время рассылки')
-    frequency = models.CharField(max_length=30, choices=FREQUENCY_CHOICE, default='daily', verbose_name='периодичность рассылки')
+    frequency = models.CharField(max_length=30, choices=PERIODS, default='daily', verbose_name='периодичность рассылки')
     start_date = models.DateField(default=now, verbose_name='начало рассылки')
     end_date = models.DateField(**NULLABLE, verbose_name='окончание рассылки')
     status = models.CharField(max_length=120, choices=STATUS_CHOICE, default='создана', verbose_name='статус рассылки')
@@ -142,6 +153,8 @@ class MailingSettings(models.Model):
 
     clients = models.ManyToManyField(Client, verbose_name='клиенты')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, verbose_name='владелец рассылки', **NULLABLE)
+
+    objects = models.Manager()
 
     def _str__(self):
         return (f"Рассылка #{self.pk}. Время отправки - {self.send_time} "
@@ -174,9 +187,12 @@ class MailingLog(models.Model):
     response = models.TextField(default='No response received yet')
     last_attempt_datetime = models.DateTimeField(null=True, blank=True)
     last_attempt_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ATTEMPTED)
+    error_msg = models.TextField(verbose_name='Ответ сервера', **NULLABLE)
+
+    objects = models.Manager()
 
     def __str__(self):
-        return f"Mailing Log for {self.client}"
+        return f'{self.status} {self.client} {self.mailing} {self.error_msg}'
 
 
 class Logfile(models.Model):
@@ -188,6 +204,8 @@ class Logfile(models.Model):
     mail_title = models.CharField(max_length=150, verbose_name='тема письма')
     mail_content = models.TextField(verbose_name='текст сообщения')
     error = models.TextField(** NULLABLE, verbose_name='текст ошибки')
+
+    objects = models.Manager()
 
     def __str__(self):
         return f'Лог {self.pk}'

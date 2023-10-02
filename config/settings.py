@@ -136,13 +136,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Настройки Celery
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-
 CRONJOBS = [
-    ('*/5 * * * *', 'myapp.tasks.process_mailings'),  # Запуск каждые 5 минут, настройте под свои нужды
+    ('*/5 * * * *', 'myapp.cron.my_scheduled_job')    # Запуск каждые 5 минут
 ]
 
 # Указание на использование стандартного бэкэнда аутентификации
@@ -176,6 +171,7 @@ if CACHE_ENABLED:
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
             "LOCATION": os.getenv('CACHE_LOCATION'),
+            "TIMEOUT": 300
         }
     }
 

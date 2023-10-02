@@ -10,7 +10,9 @@ psycopg2
 pillow
 ipython
 django4-background-tasks
-python-dotenv
+python-dotenv~=1.0.0
 django_crontab
 allauth
 guardian
+psycopg2-binary==2.9.7
+APScheduler~=3.10.4
