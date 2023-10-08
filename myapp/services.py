@@ -1,90 +1,85 @@
 from random import randint
-from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.tokens import default_token_generator
-from django.urls import reverse_lazy
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.core.mail import send_mail
-from django.contrib.auth.models import Group
+from django.utils.http import urlsafe_base64_decode
 from myapp.models import User
-
-import datetime
-from myapp.tasks import send_newsletter, assign_running_status, assign_done_status
-from myapp.funcs import revert_command
-from background_task.models import Task
-
-
-def create_mailing(obj):
-    hour = obj.sending_time.hour - 3
-    start = datetime.datetime(year=obj.start_date.year, month=obj.start_date.month, day=obj.start_date.day,
-                              hour=hour, minute=obj.sending_time.minute,
-                              second=obj.sending_time.second)
-    end = datetime.datetime(year=obj.end_date.year, month=obj.end_date.month, day=obj.end_date.day,
-                            hour=hour, minute=obj.sending_time.minute,
-                            second=obj.sending_time.second)
-    rep = revert_command(obj.sending_period.description)
-
-    send_newsletter(obj.pk, schedule=start, repeat=rep, repeat_until=end)
-    assign_running_status(obj.pk, schedule=start)
-    assign_done_status(obj.pk, schedule=end)
+from blog.models import BlogPost
+from django.conf import settings
+from django.core.cache import cache
+from django.core.mail import send_mail
+from django.db.models import QuerySet
+from myapp.models import MailingStatus, MailingSettings
 
 
-def resume_mailing(mail):
-    hour = mail.sending_time.hour - 3
-    start = datetime.datetime(year=mail.start_date.year, month=mail.start_date.month, day=mail.start_date.day,
-                              hour=hour, minute=mail.sending_time.minute,
-                              second=mail.sending_time.second)
-    end = datetime.datetime(year=mail.end_date.year, month=mail.end_date.month, day=mail.end_date.day,
-                            hour=hour, minute=mail.sending_time.minute,
-                            second=mail.sending_time.second)
-    rep = revert_command(mail.sending_period.description)
-
-    send_newsletter(mail.pk, schedule=start, repeat=rep, repeat_until=end)
-    assign_done_status(mail.pk, schedule=end)
-
-
-def delete_status_task(mail):
-    status_tasks = Task.objects.filter(task_name='mailing.tasks.assign_done_status')
-    for task in status_tasks:
-        params = task.params
-        params = params()[0][0]
-        if params == mail.pk:
-            mail_status_task = task
-            mail_status_task.delete()
+def send_email(title: str, body: str, users_email_list: list[User]) -> None:
+    '''Функция отправляет e-mail сообщение на указанную почту/ы
+    :param title: имя сообщения
+    :param body: тело сообщения
+    :param users_email_list: список e-mail адресов получателей'''
+    try:
+        send_mail(
+            title,
+            body,
+            settings.EMAIL_HOST_USER,
+            users_email_list,
+            fail_silently=False
+        )
+    except Exception as e:
+        print(
+            'Ошибка отправки\n'
+            f'Ошибка: {e}'
+        )
 
 
-def delete_sending_task(mail):
-    send_tasks = Task.objects.filter(task_name='mailing.tasks.send_newsletter')
-    for task in send_tasks:
-        params = task.params
-        params = params()[0][0]
-        if params == mail.pk:
-            mail_status_task = task
-            mail_status_task.delete()
+def check_user(user: User, current_user: User) -> bool:
+    '''Функция проверяет, что пользователь объекта является
+    текущим, чтобы видеть страницу объекта, иначе переходит на другую
+    страницу
+    :param user: пользователь объекта
+    :param current_user: текущий пользователь
+    :return: bool'''
+    return user == current_user
 
 
-def add_group(user):
-    group = Group.objects.get(name='Service_user')
-    user.groups.add(group)
-    user.save()
+def get_status_object(status_name: str) -> MailingStatus:
+    '''Функция возвращает объект класса MailingStatus по переданному имени
+    :param status_name: имя статуса
+    :return: MailingStatus objects'''
+    try:
+        status = MailingStatus.objects.get(name=status_name)
+        return status
+    except Exception as e:
+        print(f'Ошибка - {e}')
 
 
-def send_registration_mail(user):
-    user.is_active = False
-    user.save()
-    token = default_token_generator.make_token(user)
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    activation_url = reverse_lazy('users:confirm_email', kwargs={'uidb64': uid, 'token': token})
-    current_site = settings.SITE_NAME
-    send_mail(
-        subject='Регистрация на сайте',
-        message=f'Вы зарегистрировались на нашей платформе, пожалуйста подтвердите свой email: '
-                f'http://{current_site}{activation_url}',
-        from_email=settings.EMAIL_HOST_USER,
-        recipient_list=[user.email]
-    )
+def check_mailing_status(mailing: MailingSettings, status_name: str) -> bool:
+    '''Функция проверят, что статус рассылки равен переданому
+    :param mailing: рассылка сервиса
+    :param status_name: имя статуса
+    :return: bool'''
+    status = get_status_object(status_name)
 
+    return mailing.status == status
+
+
+def get_articles_from_cache() -> QuerySet:
+    '''Функция возвращает все статьи из кэша. Если кэш пуст,
+    то сохраняет статьи из базы данных в него
+    :return: QuerySet состоящий из объектов Article'''
+    if settings.CACHE_ENABLED:
+        key = 'articles'
+        cached_data = cache.get(key)
+
+        if cached_data is None:
+            cached_data = BlogPost.objects.all()
+            cache.set(key, cached_data, 600)
+
+        return cached_data
+
+    return BlogPost.objects.all()
+
+#####################################################################################
+'''Функции авторизации'''
 
 def check_link(request, uidb64, token):
     try:

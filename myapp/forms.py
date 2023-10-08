@@ -1,7 +1,16 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from .models import MailingSettings, Client, Message, MailingLog, User
-from .utils import get_current_request
+from .models import MailingSettings, Client, Message, User
+from threading import current_thread
+
+_requests = {}
+
+
+def get_current_request():
+    t = current_thread()
+    if t not in _requests:
+        return None
+    return _requests[t]
 
 
 class StyleFormMixin(forms.ModelForm):
@@ -18,14 +27,14 @@ class MailingSettingsForm(forms.ModelForm):
 
     class Meta:
         model = MailingSettings
-        fields = ['title', 'clients', 'start_time', 'start_date', 'end_date', 'frequency', 'status']
+        fields = ['title', 'sending_time', 'regularity', 'status']
 
 
 class MailUpdateForm(forms.ModelForm):
 
     class Meta:
         model = MailingSettings
-        fields = ('title', 'body_mess', 'clients')
+        fields = ('title', 'body')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -45,14 +54,6 @@ class MessageForm(forms.ModelForm):
     class Meta:
         model = Message
         fields = ['subject', 'body']
-
-########################################################################
-class MailingLogForm(StyleFormMixin, forms.ModelForm):
-    send_time = forms.TimeField()
-
-    class Meta:
-        model = MailingLog
-        fields = ['send_time', 'client']
 
 ########################################################################
 

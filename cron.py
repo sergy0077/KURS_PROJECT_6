@@ -1,57 +1,38 @@
+import datetime
+from django.db.models import Q
+from myapp.models import MailingSettings, MailingStatus, MailingLog, Client
 
-from apscheduler.jobstores.base import JobLookupError
-from apscheduler.schedulers.background import BackgroundScheduler
-from myapp.models import MailingSettings
-from myapp.views import CreateMailing
-import sys
 
-# Создаем планировщик
-scheduler = BackgroundScheduler()
+from myapp.services import send_email
 
-# Функция, которую мы хотим запускать периодически
-def my_scheduled_job():
-    # Создаем экземпляр формы CreateMailing и вызываем метод form_valid
-    form = CreateMailing()
-    form.setup(form.request)  # Необходимо правильно настроить форму, возможно, путем передачи запроса
-    if form.is_valid():
-        form.form_valid(form.form)  # Вызываем метод form_valid с переданной формой
-    else:
-        print("Invalid form data")  # Обрабатываем неверные данные формы
 
-# Функция для запуска планировщика
-def start_scheduler():
-    try:
-        if MailingSettings.status:
-            if MailingSettings.PERIODS == 'PERIOD_HOURLY':
-                scheduler.add_job(my_scheduled_job, 'interval', hours=1,  name='send_mailings', id='hourly_job')
-            elif MailingSettings.PERIODS == 'PERIOD_DAILY':
-                scheduler.add_job(my_scheduled_job, 'interval', hours=24, name='send_mailings', id='daily_job')
-            elif MailingSettings.PERIODS == 'PERIOD_WEEKLY':
-                scheduler.add_job(my_scheduled_job, 'interval', hours=168, name='send_mailings', id='weekly_job')
-            scheduler.start()
-            print("Scheduler started...", file=sys.stdout)
-        else:
-            scheduler.pause()
-            print("Scheduler paused...", file=sys.stdout)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+def cron_send_email() -> None:
+    now = datetime.datetime.now()
+    mailings = MailingSettings.objects.filter(
+        Q(status__name='создана') | Q(status__name='запущена')
+    )
 
-# Функция для остановки задачи по ее имени
-def stop_scheduler_job(job_id):
-    try:
-        scheduler.remove_job(job_id)
-        print(f"Job '{job_id}' removed successfully")
-    except JobLookupError:
-        print(f"Job '{job_id}' not found")
+    for mailing in mailings:
+        try:
+            if mailing.sending_time <= now:
+                clients_email_list = [str(client.email) for client in Client.objects.filter(user=mailing.user)]
+                send_email(mailing.title, mailing.body, clients_email_list)
+                MailingLog.objects.create(mailing=mailing)
 
-# Функция для остановки всех задач
-def stop_all_scheduler_jobs():
-    try:
-        scheduler.remove_all_jobs()
-        print("All jobs removed successfully")
-    except JobLookupError:
-        print("No jobs found")
+                if mailing.regularity:
+                    mailing.status = MailingStatus.objects.get(name='запущена')
+                    if mailing.regularity.name == 'раз в день':
+                        mailing.sending_time += datetime.timedelta(days=1)
+                    elif mailing.regularity.name == 'раз в неделю':
+                        mailing.sending_time += datetime.timedelta(weeks=1)
+                    elif mailing.regularity.name == 'раз в месяц':
+                        mailing.sending_time += datetime.timedelta(weeks=4)
+                else:
+                    mailing.status = MailingStatus.objects.get(name='завершена')
 
-# Проверяем, если скрипт запущен напрямую (а не импортирован как модуль), то запускаем планировщик
-if __name__ == "__main__":
-    start_scheduler()
+                mailing.save()
+
+        except Exception as e:
+            # Если произошла ошибка, создать запись в MailingLog с информацией об ошибке
+            MailingLog.objects.create(mailing=mailing, status=False, server_response=str(e))
+

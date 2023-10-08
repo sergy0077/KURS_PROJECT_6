@@ -18,8 +18,6 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-#ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
-
 ALLOWED_HOSTS = []
 
 # Application definition
@@ -31,14 +29,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_crontab',
+    'crispy_forms',
+    'crispy_bootstrap5',
 
     'myapp',
     'blog',
-    'django_crontab',
-    'allauth',
-    'allauth.account',
-    'guardian',
-    'background_task', # How to use: https://django-background-tasks.readthedocs.io/en/latest/#
 ]
 
 SITE_NAME = '127.0.0.1:8000'
@@ -136,8 +132,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Crispy-forms settings
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
 CRONJOBS = [
-    ('*/5 * * * *', 'myapp.cron.my_scheduled_job')    # Запуск каждые 5 минут
+    ('*/5 * * * *', 'cron.my_scheduled_job')    # Запуск каждые 5 минут
 ]
 
 # Указание на использование стандартного бэкэнда аутентификации
@@ -153,8 +152,13 @@ EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
 EMAIL_SSL_VERSION = ssl.PROTOCOL_TLSv1_2
+
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')         # Почта для внешнего Django-приложения, создана для учебных целей
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')    # Пароль для внешнего Django-приложения
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+SERVER_EMAIL = EMAIL_HOST_USER
+EMAIL_ADMIN = EMAIL_HOST_USER
 
 AUTH_USER_MODEL = 'myapp.User'
 
@@ -164,7 +168,7 @@ LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/myapp/login/'  # путь к странице входа для пользователей
 
 
-CACHE_ENABLED = os.getenv('CACHE_ENABLED') == '1'
+CACHE_ENABLED = os.getenv('CACHE_ENABLED') == 'True'
 
 if CACHE_ENABLED:
     CACHES = {

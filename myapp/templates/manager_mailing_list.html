@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    {% for object in object_list %}
+        <div class="row">
+            <div class="card mb-3 mt-3" style="max-width: 1500px;">
+                <div class="row g-0">
+                    <div class="col-12">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ object.title|upper }}</h5>
+                            <p class="card-text">
+                                {{ object.body|slice:"500" }}...
+                            </p>
+                            <p><b>Дата следующей публикации: </b>{{ object.sending_time }}</p>
+                            {% if object.regularity %}
+                                <p><b>Переодичность: </b>{{ object.regularity }}</p>
+                            {% else %}
+                                <p><b>Переодичность: </b>не указана</p>
+                            {% endif %}
+                            <hr>
+                            <div class="row">
+                                <div class="col-10">
+                                    <a href="{% url 'users:user_detail' object.user.pk %}" class="text-dark">
+                                        <b>Автор: </b>{{ object.user.email }}
+                                    </a>
+                                </div>
+                                <div class="col-2 text-end">
+                                    <a href="{% url 'mailings:mailing_detail' object.slug %}"
+                                       class="btn btn-outline-dark">ПРОСМОТРЕТЬ</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

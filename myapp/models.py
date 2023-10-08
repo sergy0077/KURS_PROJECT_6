@@ -2,7 +2,6 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
-from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from config import settings
 
@@ -106,110 +105,66 @@ class Message(models.Model):
 #############################################################################################
 """Модель рассылки"""
 
-class Period(models.Model):
-    period = models.CharField(max_length=150, verbose_name='периодичность')
-    description = models.TextField(verbose_name='содержание')
+class MailingRegularity(models.Model):
+    '''Модель переодичности рассылки'''
+    name = models.CharField(max_length=50, verbose_name='Переодичность', unique=True)
 
-    def __str__(self):
-        return f'{self.period}'
+    def __str__(self) -> str:
+        return f'{self.name}'
 
     class Meta:
-        verbose_name = 'период'
-        verbose_name_plural = 'периоды'
+        verbose_name = 'переодичность'
+        verbose_name_plural = 'переодичности'
+
+
+class MailingStatus(models.Model):
+    '''Модель статуса рассылки'''
+    name = models.CharField(max_length=50, verbose_name='Статус', unique=True)
+
+    def __str__(self) -> str:
+        return f'{self.name}'
+
+    class Meta:
+        verbose_name = 'статус'
+        verbose_name_plural = 'статусы'
 
 
 class MailingSettings(models.Model):
-    objects = None
-    # FREQUENCY_CHOICE = (
-    #     ("daily", "ежедневно"),
-    #     ("weekly", "еженедельно"),
-    #     ("monthly", "ежемесячно"),
-    # )
-    #
-    STATUS_CHOICE = (
-    ("created", "Создана"),
-    ("completed", "Завершена"),
-    ("started", "Запущена"),
-    )
-    PERIOD_HOURLY = 'hourly'
-    PERIOD_DAILY = 'daily'
-    PERIOD_WEEKLY = 'weekly'
+    '''Модель рассылки'''
+    owner = None
+    title = models.CharField(max_length=80, verbose_name='Тема')
+    body = models.TextField(verbose_name='Тело')
+    slug = models.SlugField(max_length=100, unique=True, allow_unicode=True, **NULLABLE)
+    sending_time = models.DateTimeField(default=timezone.now, verbose_name='Время')
+    regularity = models.ForeignKey(MailingRegularity, on_delete=models.SET_NULL, verbose_name='Периодичность',
+                                   **NULLABLE)
+    status = models.ForeignKey(MailingStatus, on_delete=models.CASCADE, verbose_name='Статус', **NULLABLE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Пользователь сервиса', **NULLABLE)
 
-    PERIODS = (
-        (PERIOD_HOURLY, 'Раз в час'),
-        (PERIOD_DAILY, 'Ежедневная'),
-        (PERIOD_WEEKLY, 'Раз в неделю'),
-    )
-    title = models.CharField(max_length=25, verbose_name='Название рассылки')
-    theme_mess = models.CharField(max_length=200, verbose_name='Тема письма')
-    body_mess = models.TextField(verbose_name='Тело письма')
-
-    start_time = models.TimeField(auto_now_add=False, default='12:00', verbose_name='время рассылки')
-    frequency = models.CharField(max_length=30, choices=PERIODS, default='daily', verbose_name='периодичность рассылки')
-    start_date = models.DateField(default=now, verbose_name='начало рассылки')
-    end_date = models.DateField(**NULLABLE, verbose_name='окончание рассылки')
-    status = models.CharField(max_length=120, choices=STATUS_CHOICE, default='создана', verbose_name='статус рассылки')
-    is_active = models.BooleanField(default=True, verbose_name='статус активности')
-
-    clients = models.ManyToManyField(Client, verbose_name='клиенты')
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, verbose_name='владелец рассылки', **NULLABLE)
-
-    objects = models.Manager()
-
-    def _str__(self):
-        return (f"Рассылка #{self.pk}. Время отправки - {self.send_time} "
-                f"Периодичность - {self. frequency}. Статутс {self.status}"
-                f"Название рассылки {self.title}")
+    def __str__(self) -> str:
+        return f'{self.title}'
 
     class Meta:
-        verbose_name = 'письмо'
-        verbose_name_plural = 'письма'
+        verbose_name = 'рассылка'
+        verbose_name_plural = 'рассылки'
+
+    def get_active_mailing_count(self, status_name):
+        return MailingSettings.objects.filter(status__name=status_name).count()
 
 
 ########################################################################
 """Модель логов рассылки"""
 
 class MailingLog(models.Model):
-    objects = None
-    STATUS_ATTEMPTED = 'attempted'
-    STATUS_SUCCESS = 'success'
-    STATUS_FAILED = 'failed'
-    STATUS_CHOICES = (
-        (STATUS_ATTEMPTED, 'Attempted'),
-        (STATUS_SUCCESS, 'Success'),
-        (STATUS_FAILED, 'Failed'),
-    )
 
-    mailing = models.ForeignKey(MailingSettings, on_delete=models.CASCADE)
-    client = models.ForeignKey(Client, on_delete=models.CASCADE)
-    send_datetime = models.DateTimeField(default=timezone.now)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ATTEMPTED)
-    response = models.TextField(default='No response received yet')
-    last_attempt_datetime = models.DateTimeField(null=True, blank=True)
-    last_attempt_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ATTEMPTED)
-    error_msg = models.TextField(verbose_name='Ответ сервера', **NULLABLE)
+    mailing = models.ForeignKey(MailingSettings, on_delete=models.CASCADE, verbose_name='Рассылка')
+    attempt_datetime = models.DateTimeField(default=timezone.now, verbose_name='Последняя попытка')
+    status = models.BooleanField(default=True, verbose_name='Статус попытки', **NULLABLE)
+    server_response = models.TextField(verbose_name='Ответ сервера', default='OK')
 
-    objects = models.Manager()
-
-    def __str__(self):
-        return f'{self.status} {self.client} {self.mailing} {self.error_msg}'
-
-
-class Logfile(models.Model):
-    date = models.DateTimeField(verbose_name='дата и время последней попытки')
-    is_success = models.BooleanField(verbose_name='статус: успешно')
-    mail = models.ForeignKey(MailingSettings, on_delete=models.CASCADE, verbose_name='рассылка')
-    send_from = models.EmailField(verbose_name='от кого')
-    send_to = models.TextField(verbose_name='кому')
-    mail_title = models.CharField(max_length=150, verbose_name='тема письма')
-    mail_content = models.TextField(verbose_name='текст сообщения')
-    error = models.TextField(** NULLABLE, verbose_name='текст ошибки')
-
-    objects = models.Manager()
-
-    def __str__(self):
-        return f'Лог {self.pk}'
+    def __str__(self) -> str:
+        return f'{self.mailing.title} - {self.status}'
 
     class Meta:
-        verbose_name = 'лог'
-        verbose_name_plural = 'логи'
+        verbose_name = 'лог рассылки'
+        verbose_name_plural = 'логи рассылки'

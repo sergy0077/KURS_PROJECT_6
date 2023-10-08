@@ -1,5 +1,4 @@
 from django.db import models
-from django.urls import reverse
 from django.utils.timezone import now
 
 NULLABLE = {'blank': True, 'null': True}

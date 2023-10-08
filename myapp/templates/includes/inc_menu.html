@@ -15,7 +15,6 @@
         {% if perms.mailing.view_mail %}
         <a class="p-2 btn btn-outline-primary" href="{% url 'myapp:mailing_list' %}">Рассылки</a>
         {% endif %}
-        <a class="p-2 btn btn-outline-primary" href="{% url 'myapp:log_list' %}">Логи</a>
 
         {% if perms.clients.view_client %}
         <a class="p-2 btn btn-outline-primary" href="{% url 'myapp:client_list' %}">Клиенты</a>

@@ -1,26 +1,27 @@
-from datetime import timezone
 from django.contrib.auth.views import PasswordResetDoneView, RedirectURLMixin
-from django.core.mail import send_mail
+from django.db.models import Q, QuerySet
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views import View
-from django.views.decorators.http import require_POST
-from django.views.generic import TemplateView, FormView
+from typing import Any
+from pytils.translit import slugify
 from django.urls import reverse_lazy, reverse
-from .models import MailingSettings, MailingLog, Client, Message, User, Logfile
-from myapp.forms import MailingSettingsForm, ClientForm, MessageForm, MailingLogForm, UserForm
+from .models import MailingSettings, MailingLog, Client, Message, User, MailingStatus
+from myapp.forms import MailingSettingsForm, ClientForm, MessageForm, UserForm
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.utils import timezone
-from myapp.services import send_block_notification, send_reset_password_mail, check_link
-from .utils import create_failed_log
-from django.views.generic import CreateView, DetailView, ListView, UpdateView, DeleteView
-from django.shortcuts import render, get_object_or_404
+from myapp.services import (
+    check_mailing_status, check_user, get_status_object, check_link, send_block_notification,
+    send_reset_password_mail
+)
+from django.views.generic import CreateView, DetailView, ListView, UpdateView, DeleteView, TemplateView, FormView
 from blog.models import BlogPost
 from django.core.exceptions import ObjectDoesNotExist
 
+######################################################################
+
+'''Функция отображения главной страницы сервиса'''
 
 def index(request):
     try:
@@ -29,7 +30,9 @@ def index(request):
         mailing_all = 0
 
     try:
-        mailing_active = MailingSettings.objects.filter(status='запущена').count()
+        status_name = "запущена"
+        status_object = MailingStatus.objects.get(name=status_name)
+        mailing_active = MailingSettings.objects.filter(status=status_object).count()
     except ObjectDoesNotExist:
         mailing_active = 0
 
@@ -48,6 +51,22 @@ def index(request):
 
 
 #############################################################################
+
+"""Представление для главной страницы"""
+
+class HomePageView(TemplateView):
+    template_name = 'home.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['mailing_count'] = MailingSettings.objects.count()
+        context['active_mailing_count'] = MailingSettings.objects.filter(status='started').count()
+        context['unique_client_count'] = Client.objects.count()
+        context['random_blog_posts'] = BlogPost.objects.order_by('?')[:3]
+        return context
+
+#######################################################################
+
 """Блок пользователей - USER"""
 
 
@@ -104,11 +123,13 @@ def reset_password(request):
         email = request.POST.get('email')
         send_reset_password_mail(email)
         return redirect('myapp/confirmation:password_reset_done')
-    return render(request, 'myapp/confirmation/password_reset_form.html')
+    return render(request, 'confirmation/password_reset_form.html')
 
 
 class UserResetDoneView(PasswordResetDoneView):
-    template_name = "confirmation/password_reset_done.html"
+    model = User
+    template_name = 'confirmation/password_reset_done.html'
+
 
 
 class UserListView(PermissionRequiredMixin, ListView):
@@ -174,10 +195,12 @@ def toggle_users_activity(request, pk):
     user.save()
     return redirect(reverse('myapp:user_list'))
 
+
 ############################################################################
+
 """Блок клиента"""
 
-class ClientCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+class ClientCreate(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = Client
     form_class = ClientForm
     template_name = 'client_create.html'
@@ -194,7 +217,7 @@ class ClientCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
         return reverse('myapp:client_list')
 
 
-class ClientUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+class ClientUpdate(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
     model = Client
     form_class = ClientForm
     template_name = 'client_update.html'
@@ -211,7 +234,7 @@ class ClientUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
         return reverse('myapp:client_list', args=[self.kwargs.get('pk')])
 
 
-class ClientDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class ClientDelete(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
     model = Client
     template_name = 'client_delete.html'
     success_url = reverse_lazy('myapp:client_list')
@@ -283,76 +306,129 @@ class CreateMailing(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     def get_success_url(self):
         return reverse('myapp:mailing_list')
 
+    def form_valid(self, form) -> HttpResponse:
+        if form.is_valid():
+            self.object = form.save()
+            self.object.status = MailingStatus.objects.get(name='создана')
+            self.object.slug = slugify(f'{self.object.title}-{self.object.pk}')
+            self.object.user = self.request.user
+            self.object.save()
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        form.fields.pop('status')  # Убираем поле "Status" из формы
-        return form
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Создание рассылки'
+
+        return context
 
 
 class EditMailing(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    '''Класс для редактирования рассылки'''
     model = MailingSettings
-    fields = ['title', 'message', 'clients', 'send_time', 'frequency', 'status']
+    fields = ['title', 'message', 'sending_time', 'regularity', 'status']
     template_name = 'edit_mailing.html'
     success_url = reverse_lazy('myapp:mailing_list')
     permission_required = 'myapp.change_mail'
 
-    def test_func(self):
-        # Проверка, что текущий пользователь может редактировать данную запись
+    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
         mailing = self.get_object()
-        return self.can_be_edited_by(self.request.user, mailing)
 
-    def can_be_edited_by(self, user, mailing):
-        # проверкf доступа к редактированию записи
-        # является ли пользователь создателем записи
-        return user.is_superuser
+        if not check_user(mailing.user, self.request.user) or not check_mailing_status(mailing, 'создана'):
+            return redirect('myapp:mailing_list')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form) -> HttpResponse:
+        if form.is_valid():
+            self.object = form.save()
+            self.object.slug = slugify(f'{self.object.title}-{self.object.pk}')
+            self.object.save()
+
+        return super().form_valid(form)
 
 
-class MailingList(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+
+class MailingList(LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin, ListView):
     model = MailingSettings
     template_name = 'mailing_list.html'
     context_object_name = 'object_list'
     permission_required = 'myapp.view_mail'
 
-    def get_queryset(self):
+    def get_queryset(self, *args, **kwargs) -> QuerySet:
         queryset = super().get_queryset()
         if self.request.user.is_staff or MailingSettings.owner == self.request.user:
             return queryset
         raise Http404
 
-    def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context['mailing_logs'] = MailingLog.objects.all()
         context['mailing'] = MailingSettings.objects.first()
+        context['title'] = 'Рассылки'
         return context
+
+    def test_func(self) -> bool:
+        return self.request.user.groups.filter(name='service_users')
 
 
 class MailingDetailPage(DetailView):
+    '''Класс для отображения информации об одной рассылке'''
     model = MailingSettings
     template_name = 'mailing_detail.html'
 
-    def get_context_data(self, сlients=None, **kwargs):
+    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
+        group = self.request.user.groups.filter(name='manager')
+        status = self.get_object().status
+
+        if not group:
+            if not check_user(self.get_object().user, self.request.user):
+                return redirect('myapp:mailing_list')
+        else:
+            if status == get_status_object('завершена'):
+                return redirect('myapp:manager_mailing_list')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        mailing_settings = self.object
-        clients = mailing_settings.clients.all()
-        context['clients'] = сlients
+        context['title'] = self.object.title
+
         return context
 
 
 class DeleteMailing(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    '''Класс для удаления рассылки'''
     model = MailingSettings
     template_name = 'delete_mailing.html'
     success_url = reverse_lazy('myapp:mailing_list')
     permission_required = 'myapp.delete_mail'
 
-    def get_object(self, queryset=None):
-        self.object = super().get_object(queryset)
-        if self.object.owner != self.request.user:
-            raise Http404("Вы не являетесь создателем данной рассылки, у вас нет прав на её удаление.")
-        return self.object
+    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
+        mailing = self.get_object()
+        group = self.request.user.groups.filter(name='manager')
 
-    def get_success_url(self):
+        if not group:
+            if not check_user(mailing.user, self.request.user) or check_mailing_status(mailing, 'запущена'):
+                return redirect('myapp:mailing_list')
+        elif self.get_object().status != get_status_object('создана'):
+            return redirect('myapp:manager_mailing_list')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self) -> str:
+        group = self.request.user.groups.filter(name='manager')
+
+        if group:
+            return reverse('myapp:manager_mailing_list')
+
         return reverse('myapp:mailing_list')
+
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'Удаление рассылки {self.object.title}'
+
+        return context
 
 
 class MailLogfileDetailView(DetailView):
@@ -381,96 +457,128 @@ def mailing_activity(request, pk):
     return redirect(reverse('myapp:mail_list'))
 
 
-def send_mailing(id):
-    pass
+class ChangeMailingStatusView(LoginRequiredMixin, PermissionRequiredMixin, View):
+    '''Класс для перевода рассылки к типу "завершена"'''
 
+    permission_required = 'myapp.change_mailingstatus'
 
-@require_POST
-@login_required
-def send_mailing_now(request, pk):
-    client_id = request.POST.get('client_id')
-    print("Client ID:", client_id)
-    client = get_object_or_404(Client, pk=client_id)
-    mailing_settings = get_object_or_404(MailingSettings, pk=pk)
+    def __get_mailing(self, slug) -> MailingSettings:
+        mailing = get_object_or_404(MailingSettings, slug=slug)
 
-    try:
-        client = Client.objects.get(pk=client)
-    except Client.DoesNotExist:
-        return HttpResponse('Client not found', status=400)
+        return mailing
 
-    try:
-        mailing_log = MailingLog.objects.create(
-            mailing=mailing_settings,
-            client=client,
-            send_datetime=timezone.now(),
-            status=MailingLog.STATUS_ATTEMPTED,
-            response='No response received yet',
+    def get(self, request, slug) -> HttpResponse:
+        mailing = self.__get_mailing(slug)
+        group = self.request.user.groups.filter(name='manager')
+
+        if not group:
+            if not check_user(mailing.user, self.request.user) or not check_mailing_status(mailing, 'запущена'):
+                return redirect('myapp:mailing_list')
+        elif not check_mailing_status(mailing, 'запущена'):
+            return redirect('myapp:manager_mailing_list')
+
+        return render(
+            request, 'myapp/mailing_status_change.html',
+            {'object': mailing, 'title': 'Изменение статуса'}
         )
-        mailing_log.save()
-        send_mailing(mailing_settings.id)
-    except Client.DoesNotExist:
-        # Обработка, если клиент не найден
-        create_failed_log(None, 'Client not found')
-        return HttpResponse('Client not found', status=400)  # Вернуть сообщение об ошибке и статус 400 (Bad Request)
 
-    return redirect('myapp:mailing_detail', pk=pk)
+    def post(self, request, slug) -> HttpResponse:
+        mailing = self.__get_mailing(slug)
+        mailing.status = MailingStatus.objects.get(name='завершена')
+        mailing.save()
 
+        group = self.request.user.groups.filter(name='manager')
 
-def contacts(request):
-    context_data = {
-        'manager': User.objects.filter(groups__name='Manager')[0],
-        'content_manager': User.objects.filter(groups__name='Content_manager')[0]
-    }
-    return render(request, 'mailing/contacts.html', context=context_data)
+        if group:
+            return redirect('myapp:manager_mailing_list')
+
+        return redirect('myapp:mailing_list')
 
 
 ###########################################################################
-"""Представление для главной страницы"""
 
-class HomePageView(TemplateView):
-    template_name = 'home.html'
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['mailing_count'] = MailingSettings.objects.count()
-        context['active_mailing_count'] = MailingSettings.objects.filter(status='started').count()
-        context['unique_client_count'] = Client.objects.count()
-        context['random_blog_posts'] = BlogPost.objects.order_by('?')[:3]
-        return context
-
-#######################################################################
 """Блок логов"""
-class CreateMailingLog(CreateView):
+
+class MailingLogsListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    '''
+    Класс для просмотра всех логов рассылок
+    '''
     model = MailingLog
-    form_class = MailingLogForm
-    template_name = 'create_mailing_log.html'
-    success_url = reverse_lazy('myapp:log_list')
+    permission_required = 'mailings.view_mailinglogs'
+    template_name = 'myapp/mailing_logs_list.html'
 
-    def form_valid(self, form):
-        send_time = form.cleaned_data['send_time']
-        mailing = MailingSettings.objects.get(pk=self.kwargs['mailing_id'])
-        client = form.cleaned_data['client']
-        mailing_log = form.save(commit=False)
-        mailing_log.mailing = mailing
-        mailing_log.send_datetime = timezone.now()
-        mailing_log.status = 'attempted'
-        mailing_log.save()
-        return super().form_valid(form)
+    def get_queryset(self, *args, **kwargs) -> MailingLog:
+        queryset = super().get_queryset(*args, **kwargs)
+        queryset = queryset.filter(mailing__user=self.request.user).order_by('-attempt_datetime')
 
-    def get_context_data(self, **kwargs):
+        return queryset
+
+    def get_context_data(self, *, object_list=None, **kwargs) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        context['mailing'] = MailingSettings.objects.get(pk=self.kwargs['mailing_id'])
+        context['title'] = 'Логи рассылок'
+
         return context
 
 
-class LogList(LoginRequiredMixin, ListView):
-    model = MailingLog
-    template_name = 'log_list.html'
-    context_object_name = 'log_list'
+class ManagerMailingListView(MailingList):
+    '''Класс для отображения страницы всех активных рассылок для менеджера'''
+    template_name = 'myapp/manager_mailing_list.html'
+    permission_required = 'myapp.view_mailing'
+
+    def get_queryset(self, *args, **kwargs) -> QuerySet:
+        queryset = MailingSettings.objects.filter(
+            Q(status=get_status_object('запущена')) |
+            Q(status=get_status_object('создана'))
+        )
+
+        return queryset
+
+    def get_context_data(self, *, object_list=None, **kwargs) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Активные рассылки'
+
+        return context
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
 
 
-class LogDetail(LoginRequiredMixin, DetailView):
-    model = MailingLog
-    template_name = 'log_detail.html'
-    context_object_name = 'log'
+
+
+# '''это старый код'''
+#
+# class CreateMailingLog(CreateView):
+#     model = MailingLog
+#     form_class = MailingLogForm
+#     template_name = 'create_mailing_log.html'
+#     success_url = reverse_lazy('myapp:log_list')
+#
+#     def form_valid(self, form):
+#         send_time = form.cleaned_data['send_time']
+#         mailing = MailingSettings.objects.get(pk=self.kwargs['mailing_id'])
+#         client = form.cleaned_data['client']
+#         mailing_log = form.save(commit=False)
+#         mailing_log.mailing = mailing
+#         mailing_log.send_datetime = timezone.now()
+#         mailing_log.status = 'attempted'
+#         mailing_log.save()
+#         return super().form_valid(form)
+#
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         context['mailing'] = MailingSettings.objects.get(pk=self.kwargs['mailing_id'])
+#         return context
+#
+#
+# class LogList(LoginRequiredMixin, ListView):
+#     model = MailingLog
+#     template_name = 'log_list.html'
+#     context_object_name = 'log_list'
+#
+#
+# class LogDetail(LoginRequiredMixin, DetailView):
+#     model = MailingLog
+#     template_name = 'log_detail.html'
+#     context_object_name = 'log'
 
